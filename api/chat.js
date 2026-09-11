@@ -3,7 +3,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Mengambil API Key secara aman dari Environment Variables Vercel
   const API_KEY = process.env.GCP_API_KEY;
 
   if (!API_KEY) {
@@ -13,7 +12,7 @@ export default async function handler(req, res) {
   const { contents, system_instruction } = req.body;
 
   try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -31,4 +30,5 @@ export default async function handler(req, res) {
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Gagal terhubung ke API' });
   }
-        }
+}
+  
