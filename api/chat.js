@@ -12,7 +12,7 @@ export default async function handler(req, res) {
   const { contents, system_instruction } = req.body;
 
   try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${API_KEY}`;
 
     const response = await fetch(endpoint, {
       method: 'POST',
@@ -31,4 +31,3 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: error.message || 'Gagal terhubung ke API' });
   }
 }
-  
