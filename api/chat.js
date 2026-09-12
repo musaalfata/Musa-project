@@ -1,39 +1,54 @@
-export default async function handler(req, res) {
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method not allowed' });
-  }
-
-  const API_KEY = process.env.GCP_API_KEY;
-
-  if (!API_KEY) {
-    return res.status(500).json({ error: 'API Key belum dikonfigurasi di server' });
-  }
-
-  const { contents, system_instruction } = req.body;
-
-  try {
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${API_KEY}`;
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        system_instruction,
-        contents
-      })
-    });
-
-    const responseText = await response.text();
-    
-    if (!responseText) {
-      return res.status(500).json({ error: 'Server AI mengembalikan respons kosong' });
+export default {
+  async fetch(request, env) {
+    // Tangani Request Method
+    if (request.method !== 'POST') {
+      return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+        status: 405,
+        headers: { 'Content-Type': 'application/json' }
+      });
     }
 
-    const data = JSON.parse(responseText);
-    return res.status(response.status).json(data);
-  } catch (error) {
-    return res.status(500).json({ error: error.message || 'Gagal terhubung ke API' });
+    // Ambil API Key dari Environment Variable Cloudflare
+    const API_KEY = env.GCP_API_KEY;
+
+    if (!API_KEY) {
+      return new Response(JSON.stringify({ error: 'API Key belum dikonfigurasi di Cloudflare' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    try {
+      const { contents, system_instruction } = await request.json();
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ system_instruction, contents })
+      });
+
+      const responseText = await response.text();
+      
+      if (!responseText) {
+        return new Response(JSON.stringify({ error: 'Server AI mengembalikan respons kosong' }), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+
+      const data = JSON.parse(responseText);
+
+      return new Response(JSON.stringify(data), {
+        status: response.status,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    } catch (error) {
+      return new Response(JSON.stringify({ error: error.message || 'Gagal terhubung ke API' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
   }
-        }
+};
+      
