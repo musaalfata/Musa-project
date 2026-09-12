@@ -87,12 +87,14 @@ export default {
 
     if (url.pathname === '/api/edit-image') {
       try {
-        const { prompt } = await request.json();
+        const body = await request.json();
+        const promptText = body.prompt || "A beautiful scenery";
+
         const imagenRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:generateImages?key=${API_KEY}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            prompt: prompt,
+            prompt: promptText,
             config: { numberOfImages: 1, outputMimeType: 'image/jpeg' }
           })
         });
@@ -105,8 +107,8 @@ export default {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
       } catch (err) {
-        return new Response(JSON.stringify({ error: err.message }), {
-          status: 500,
+        return new Response(JSON.stringify({ resultImageUrl: null, error: err.message }), {
+          status: 200,
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
       }
@@ -119,4 +121,4 @@ export default {
     return new Response('File statis tidak ditemukan', { status: 404 });
   }
 };
-      
+        
