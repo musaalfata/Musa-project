@@ -2,7 +2,7 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // 1. Jika memanggil endpoint API (/api/chat)
+    // Endpoint API untuk Chat
     if (url.pathname === '/api/chat') {
       if (request.method !== 'POST') {
         return new Response(JSON.stringify({ error: 'Method not allowed' }), {
@@ -42,7 +42,11 @@ export default {
       }
     }
 
-    // 2. Jika membuka halaman biasa, sajikan file statis (index.html)
-    return env.ASSETS.fetch(request);
+    // Melayani file statis (index.html)
+    if (env.ASSETS) {
+      return env.ASSETS.fetch(request);
+    }
+
+    return new Response('File statis tidak ditemukan', { status: 404 });
   }
 };
