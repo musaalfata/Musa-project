@@ -52,4 +52,3 @@ export default {
     return new Response('File statis tidak ditemukan', { status: 404 });
   }
 };
-          
