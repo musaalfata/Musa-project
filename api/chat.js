@@ -21,7 +21,6 @@ export default {
       try {
         const body = await request.json();
         
-        // Memastikan format contents sesuai standar Gemini API
         let formattedContents = body.contents;
         if (typeof body.contents === 'string') {
           formattedContents = [{ parts: [{ text: body.contents }] }];
@@ -37,7 +36,7 @@ export default {
             : body.system_instruction;
         }
 
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${API_KEY}`;
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${API_KEY}`;
 
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -47,7 +46,6 @@ export default {
 
         const data = await response.json();
 
-        // Jika API Google Gemini mengembalikan error
         if (data.error) {
           return new Response(JSON.stringify({
             candidates: [{ content: { parts: [{ text: `Google API Error: ${data.error.message}` }] } }]
@@ -84,4 +82,3 @@ export default {
     return new Response('File statis tidak ditemukan', { status: 404 });
   }
 };
-          
