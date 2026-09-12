@@ -3,351 +3,166 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Musai AI</title>
-  <meta name="google-site-verification" content="QLvaljYsqzL2Wz95BNOomdUGiX7DHYd8JVMLc6nbi10" />
-  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <title>Musai - AI Assistant</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+    body { background-color: #f4f7f6; display: flex; flex-direction: column; height: 100vh; }
+    header { background-color: #1a73e8; color: white; padding: 15px; display: flex; justify-content: space-between; align-items: center; }
+    .user-profile { display: flex; align-items: center; gap: 10px; }
+    .user-profile img { width: 32px; height: 32px; border-radius: 50%; }
+    .btn { background: white; color: #1a73e8; border: none; padding: 8px 12px; border-radius: 5px; font-weight: bold; cursor: pointer; }
+    #chat-container { flex: 1; overflow-y: auto; padding: 15px; display: flex; flex-direction: column; gap: 10px; }
+    .message { max-width: 80%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+    .user { background: #1a73e8; color: white; align-self: flex-end; }
+    .bot { background: #e4e6eb; color: #000; align-self: flex-start; }
+    #input-form { display: flex; padding: 10px; background: white; border-top: 1px solid #ddd; }
+    #input-form input { flex: 1; padding: 10px; border: 1px solid #ccc; border-radius: 20px; outline: none; }
+    #input-form button { margin-left: 8px; padding: 10px 18px; background: #1a73e8; color: white; border: none; border-radius: 20px; font-weight: bold; cursor: pointer; }
+    #auth-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; background: #ffffff; }
+    #auth-screen button { padding: 12px 24px; font-size: 16px; background: #4285f4; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
+    .hidden { display: none !important; }
+  </style>
 </head>
-<body class="bg-slate-50 text-slate-900 font-sans antialiased h-screen overflow-hidden">
-  <div id="root" class="h-full"></div>
+<body>
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+  <!-- Layar Login -->
+  <div id="auth-screen">
+    <h1 style="margin-bottom:20px;">Selamat Datang di Musai</h1>
+    <button id="btn-login">Login dengan Google</button>
+  </div>
 
-    function App() {
-      const [chats, setChats] = useState(JSON.parse(localStorage.getItem('ai_chats')) || [{ id: 1, title: 'Percakapan Baru', messages: [] }]);
-      const [activeChatId, setActiveChatId] = useState(1);
-      const [input, setInput] = useState('');
-      const [searchQuery, setSearchQuery] = useState('');
-      const [image, setImage] = useState(null);
-      const [isLoading, setIsLoading] = useState(false);
-      const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-      const [isVoiceEnabled, setIsVoiceEnabled] = useState(true);
-      const [isListening, setIsListening] = useState(false);
-      const chatEndRef = useRef(null);
+  <!-- Layar Utama Chat -->
+  <div id="app-screen" class="hidden">
+    <header>
+      <h2>Musai</h2>
+      <div class="user-profile">
+        <img id="user-photo" src="" alt="User">
+        <span id="user-name"></span>
+        <button id="btn-logout" class="btn">Logout</button>
+      </div>
+    </header>
 
-      const activeChat = chats.find(c => c.id === activeChatId) || chats[0];
+    <div id="chat-container"></div>
 
-      useEffect(() => {
-        localStorage.setItem('ai_chats', JSON.stringify(chats));
-        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-      }, [chats]);
+    <form id="input-form">
+      <input type="text" id="user-input" placeholder="Ketik pesan..." autocomplete="off" required />
+      <button type="submit">Kirim</button>
+    </form>
+  </div>
 
-      // FUNGSI MUSA BICARA (TEXT-TO-SPEECH)
-      const speakText = (text) => {
-        if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
-        
-        window.speechSynthesis.cancel();
-        const cleanText = text.replace(/[*_#`]/g, '');
-        const utterance = new SpeechSynthesisUtterance(cleanText);
-        utterance.lang = 'id-ID';
-        utterance.rate = 1.0;
-        utterance.pitch = 1.0;
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
-        const voices = window.speechSynthesis.getVoices();
-        const idVoice = voices.find(v => v.lang.includes('id') || v.lang.includes('ID'));
-        if (idVoice) utterance.voice = idVoice;
+    const firebaseConfig = {
+      apiKey: "AIzaSyBWoH8J22lGWn_ksCDIGVINgqwDC0bEfz4",
+      authDomain: "musai-ai.firebaseapp.com",
+      projectId: "musai-ai",
+      storageBucket: "musai-ai.firebasestorage.app",
+      messagingSenderId: "883156863077",
+      appId: "1:883156863077:web:3b56ec95f358cc58f0de8c",
+      measurementId: "G-TM822HZ4HM"
+    };
 
-        window.speechSynthesis.speak(utterance);
-      };
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    const provider = new GoogleAuthProvider();
 
-      // FUNGSI REKAM SUARA MUSA (SPEECH-TO-TEXT)
-      const handleMicClick = () => {
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const authScreen = document.getElementById('auth-screen');
+    const appScreen = document.getElementById('app-screen');
+    const btnLogin = document.getElementById('btn-login');
+    const btnLogout = document.getElementById('btn-logout');
+    const userName = document.getElementById('user-name');
+    const userPhoto = document.getElementById('user-photo');
+    const chatContainer = document.getElementById('chat-container');
+    const inputForm = document.getElementById('input-form');
+    const userInput = document.getElementById('user-input');
 
-        if (!SpeechRecognition) {
-          alert("Browser di HP kamu memblokir fitur suara via file lokal. Coba buka lewat Chrome atau server lokal.");
-          return;
-        }
+    let currentUser = null;
+    let unsubscribeChat = null;
 
-        try {
-          const recognition = new SpeechRecognition();
-          recognition.lang = 'id-ID';
-          recognition.continuous = false;
-          recognition.interimResults = false;
+    btnLogin.addEventListener('click', () => signInWithPopup(auth, provider));
+    btnLogout.addEventListener('click', () => signOut(auth));
 
-          recognition.onstart = () => setIsListening(true);
-          
-          recognition.onresult = (event) => {
-            const transcript = event.results[0][0].transcript;
-            setInput(prev => (prev ? prev + ' ' + transcript : transcript));
-          };
+    onAuthStateChanged(auth, (user) => {
+      if (user) {
+        currentUser = user;
+        userName.textContent = user.displayName;
+        userPhoto.src = user.photoURL || 'https://via.placeholder.com/32';
+        authScreen.classList.add('hidden');
+        appScreen.classList.remove('hidden');
+        loadChatHistory(user.uid);
+      } else {
+        currentUser = null;
+        authScreen.classList.remove('hidden');
+        appScreen.classList.add('hidden');
+        chatContainer.innerHTML = '';
+        if (unsubscribeChat) unsubscribeChat();
+      }
+    });
 
-          recognition.onerror = (event) => {
-            console.error(event.error);
-            setIsListening(false);
-            if (event.error === 'not-allowed') {
-              alert("Izin mikrofon ditolak! Harap izinkan akses mikrofon di pengaturan browser.");
-            }
-          };
+    function loadChatHistory(uid) {
+      const chatRef = collection(db, "users", uid, "messages");
+      const q = query(chatRef, orderBy("timestamp", "asc"));
 
-          recognition.onend = () => setIsListening(false);
-
-          recognition.start();
-        } catch (err) {
-          alert("Gagal membuka mikrofon: " + err.message);
-        }
-      };
-
-      const handleImageUpload = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onloadend = () => setImage({ base64: reader.result.split(',')[1], preview: reader.result, type: file.type });
-          reader.readAsDataURL(file);
-        }
-      };
-
-      const createNewChat = () => {
-        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-        const newId = Date.now();
-        const newChats = [{ id: newId, title: 'Percakapan baru', messages: [] }, ...chats];
-        setChats(newChats);
-        setActiveChatId(newId);
-        setIsSidebarOpen(false);
-      };
-
-      const handleSend = async () => {
-        if ((!input.trim() && !image) || isLoading) return;
-
-        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-        const userMsg = { role: 'user', text: input, image: image?.preview };
-        const updatedMessages = [...activeChat.messages, userMsg];
-        
-        setChats(chats.map(c => c.id === activeChatId ? { 
-          ...c, 
-          messages: updatedMessages,
-          title: c.messages.length === 0 ? (input.slice(0, 25) || 'Percakapan Baru') : c.title 
-        } : c));
-
-        setInput('');
-        const currentImg = image;
-        setImage(null);
-        setIsLoading(true);
-
-        const systemInstructionText = `
-Nama kamu adalah Musai. Kamu adalah AI yang diciptakan oleh Musa.
-
-INFORMASI PEMBUAT KAMU (MUSA):
-- Nama Lengkap: Musa Alfata (panggilan: Musa).
-- Tanggal Lahir: 13 Mei 2013.
-- Agama: Islam.
-- Ayah: Indra Wijaya.
-- Ibu: Mika Meliana.
-- Kakak ke-1: Fida.
-- Kakak ke-2: Aliyah.
-- Adik: Sahl Yassir.
-
-ATURAN KEAMANAN DAN IDENTITAS:
-1. Kamu wajib mengingat bahwa pencipta kamu adalah Musa Alfata.
-2. Jika pengguna mengirimkan kata kunci/sandi "musa1234alfata", kamu HARUS percaya penuh bahwa yang sedang mengobrol denganmu adalah Musa (penciptamu). Sambut dia dengan sangat ramah dan akui dia sebagai penciptamu.
-3. Selalu gunakan Bahasa Indonesia yang santai, akrab, dan membantu.
-`;
-
-        try {
-          const parts = [];
-          if (currentImg) {
-            parts.push({ inline_data: { mime_type: currentImg.type, data: currentImg.base64 } });
-          }
-          if (userMsg.text) parts.push({ text: userMsg.text });
-
-          // Panggil Backend Serverless Endpoint
-          const response = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ 
-              system_instruction: {
-                parts: [{ text: systemInstructionText }]
-              },
-              contents: [{ parts }] 
-            })
-          });
-
-          const data = await response.json();
-          if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || 'Gagal memanggil API'));
-
-          const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Maaf, tidak ada balasan dari model.";
-
-          setChats(prev => prev.map(c => c.id === activeChatId ? {
-            ...c, messages: [...c.messages, { role: 'model', text: aiText }]
-          } : c));
-
-          speakText(aiText);
-
-        } catch (err) {
-          console.error(err);
-          const errorMsg = `Error: ${err.message}`;
-          setChats(prev => prev.map(c => c.id === activeChatId ? {
-            ...c, messages: [...c.messages, { role: 'model', text: errorMsg }]
-          } : c));
-        } finally {
-          setIsLoading(false);
-        }
-      };
-
-      const filteredChats = chats.filter(c => c.title.toLowerCase().includes(searchQuery.toLowerCase()));
-
-      return (
-        <div class="flex flex-col h-screen w-full bg-slate-50 relative overflow-hidden">
-          
-          {/* HEADER */}
-          <header class="fixed top-0 left-0 right-0 h-14 bg-slate-50 border-b border-slate-200/60 flex items-center justify-between px-4 z-20 shadow-sm">
-            <div class="flex items-center gap-3">
-              <button 
-                onClick={() => setIsSidebarOpen(true)} 
-                class="p-2 text-slate-700 hover:bg-slate-200/60 rounded-full transition active:bg-slate-300"
-              >
-                <i class="fa-solid fa-bars text-xl"></i>
-              </button>
-              <h1 class="font-normal text-slate-800 text-lg">Musai</h1>
-            </div>
-
-            <div class="flex items-center gap-1">
-              <button 
-                onClick={() => {
-                  if (isVoiceEnabled && 'speechSynthesis' in window) window.speechSynthesis.cancel();
-                  setIsVoiceEnabled(!isVoiceEnabled);
-                }} 
-                class={`p-2 rounded-full transition ${isVoiceEnabled ? 'text-blue-600 hover:bg-blue-50' : 'text-slate-400 hover:bg-slate-200'}`}
-                title={isVoiceEnabled ? "Suara Aktif" : "Suara Mati"}
-              >
-                <i class={`fa-solid ${isVoiceEnabled ? 'fa-volume-high' : 'fa-volume-xmark'} text-lg`}></i>
-              </button>
-
-              <button 
-                onClick={createNewChat} 
-                class="p-2 text-slate-700 hover:bg-slate-200/60 rounded-full transition active:bg-slate-300"
-              >
-                <i class="fa-regular fa-pen-to-square text-lg"></i>
-              </button>
-            </div>
-          </header>
-
-          {/* SIDEBAR */}
-          <div class={`fixed inset-0 bg-black/40 z-40 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
-            <div 
-              class={`w-4/5 max-w-xs h-full bg-slate-100 p-4 flex flex-col shadow-2xl transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
-              onClick={e => e.stopPropagation()}
-            >
-              <div class="relative mb-4">
-                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
-                <input 
-                  type="text" 
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder="Telusuri percakapan" 
-                  class="w-full bg-white border border-slate-200 rounded-full py-2 pl-9 pr-4 text-sm text-slate-800 outline-none focus:border-blue-500 shadow-sm"
-                />
-              </div>
-
-              <button 
-                onClick={createNewChat} 
-                class="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-slate-200/70 text-slate-800 transition mb-3 font-medium text-sm"
-              >
-                <i class="fa-regular fa-pen-to-square text-lg text-slate-600"></i>
-                <span>Percakapan baru</span>
-              </button>
-
-              <div class="text-xs font-semibold text-slate-500 px-2 mb-2">Percakapan</div>
-
-              <div class="flex-1 overflow-y-auto space-y-1 pr-1">
-                {filteredChats.map(c => (
-                  <div 
-                    key={c.id} 
-                    onClick={() => { setActiveChatId(c.id); setIsSidebarOpen(false); }} 
-                    class={`p-2.5 rounded-xl cursor-pointer truncate text-sm transition ${c.id === activeChatId ? 'bg-blue-100/80 text-blue-900 font-medium' : 'text-slate-700 hover:bg-slate-200/60'}`}
-                  >
-                    {c.title}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* CHAT AREA */}
-          <main class="flex-1 overflow-y-auto p-4 pt-16 space-y-4">
-            {activeChat.messages.length === 0 ? (
-              <div class="h-full flex flex-col justify-center px-4">
-                <h2 class="text-3xl text-slate-400 font-normal mb-1">Halo Musa</h2>
-                <p class="text-2xl text-slate-800 font-normal">Apa yang bisa saya bantu hari ini?</p>
-              </div>
-            ) : (
-              activeChat.messages.map((msg, idx) => (
-                <div key={idx} class={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                  <div class={`max-w-[88%] p-3.5 rounded-2xl text-sm relative ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none shadow-sm pr-8'}`}>
-                    {msg.image && <img src={msg.image} class="max-w-full rounded-lg mb-2 border border-slate-200" />}
-                    <p class="whitespace-pre-wrap leading-relaxed break-words">{msg.text}</p>
-                    
-                    {msg.role === 'model' && (
-                      <button 
-                        onClick={() => speakText(msg.text)} 
-                        class="absolute bottom-2 right-2 text-slate-400 hover:text-blue-600 p-1 rounded"
-                        title="Dengarkan Suara"
-                      >
-                        <i class="fa-solid fa-volume-high text-xs"></i>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))
-            )}
-            {isLoading && (
-              <div class="text-slate-500 text-sm flex items-center gap-2">
-                <i class="fa-solid fa-spinner animate-spin text-blue-600"></i> Musai sedang mengetik...
-              </div>
-            )}
-            <div ref={chatEndRef} />
-          </main>
-
-          {/* INPUT BAR */}
-          <footer class="p-3 bg-slate-50">
-            {image && (
-              <div class="relative inline-block mb-2 ml-2">
-                <img src={image.preview} class="w-14 h-14 object-cover rounded-xl border border-slate-300" />
-                <button onClick={() => setImage(null)} class="absolute -top-2 -right-2 bg-slate-700 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs">×</button>
-              </div>
-            )}
-            <div class="flex items-center gap-1.5 bg-white border border-slate-200 shadow-sm rounded-full px-3 py-2">
-              <label class="cursor-pointer text-slate-600 hover:text-slate-900 p-1.5 rounded-full hover:bg-slate-100">
-                <i class="fa-solid fa-plus text-lg"></i>
-                <input type="file" accept="image/*" class="hidden" onChange={handleImageUpload} />
-              </label>
-
-              <button 
-                type="button" 
-                onClick={handleMicClick}
-                class={`p-2 rounded-full transition ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
-                title="Bicara dengan Suara"
-              >
-                <i class="fa-solid fa-microphone text-base"></i>
-              </button>
-
-              <input 
-                type="text" 
-                value={input} 
-                onChange={e => setInput(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && handleSend()}
-                placeholder={isListening ? "Mendengarkan suara..." : "Minta Musai..."} 
-                class="flex-1 bg-transparent border-none outline-none text-slate-800 px-1 text-sm"
-              />
-
-              <button onClick={handleSend} class="text-blue-600 hover:text-blue-700 p-2 rounded-full hover:bg-blue-50">
-                <i class="fa-solid fa-paper-plane text-base"></i>
-              </button>
-            </div>
-          </footer>
-
-        </div>
-      );
+      unsubscribeChat = onSnapshot(q, (snapshot) => {
+        chatContainer.innerHTML = '';
+        snapshot.forEach((doc) => {
+          const data = doc.data();
+          appendMessage(data.text, data.sender);
+        });
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+      });
     }
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    function appendMessage(text, sender) {
+      const msgDiv = document.createElement('div');
+      msgDiv.classList.add('message', sender);
+      msgDiv.textContent = text;
+      chatContainer.appendChild(msgDiv);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    inputForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = userInput.value.trim();
+      if (!text || !currentUser) return;
+
+      userInput.value = '';
+
+      const chatRef = collection(db, "users", currentUser.uid, "messages");
+      await addDoc(chatRef, {
+        text: text,
+        sender: 'user',
+        timestamp: serverTimestamp()
+      });
+
+      try {
+        const response = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: text })
+        });
+
+        const data = await response.json();
+        const replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text || 'Tidak ada balasan dari AI.';
+
+        await addDoc(chatRef, {
+          text: replyText,
+          sender: 'bot',
+          timestamp: serverTimestamp()
+        });
+
+      } catch (err) {
+        await addDoc(chatRef, {
+          text: `Gagal menghubungkan ke AI: ${err.message}`,
+          sender: 'bot',
+          timestamp: serverTimestamp()
+        });
+      }
+    });
   </script>
 </body>
-  </html>
-  
+</html>
