@@ -1,7 +1,7 @@
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    const API_KEY = env.GCP_API_KEY;
+    const API_KEY = env.GEMINI_API_KEY;
 
     if (request.method === 'OPTIONS') {
       return new Response(null, {
@@ -13,6 +13,7 @@ export default {
       });
     }
 
+    // Endpoint untuk Chat & Analisis Gambar
     if (url.pathname === '/api/chat') {
       try {
         const body = await request.json();
@@ -33,6 +34,7 @@ export default {
       }
     }
 
+    // Endpoint untuk Membuat / Mengedit Gambar (Imagen)
     if (url.pathname === '/api/edit-image') {
       try {
         const { prompt } = await request.json();
@@ -46,6 +48,7 @@ export default {
         });
         const data = await imagenRes.json();
         
+        // Ambil hasil gambar base64 dari response Google Imagen
         const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
         const resultUrl = base64Image ? `data:image/jpeg;base64,${base64Image}` : null;
 
@@ -63,4 +66,3 @@ export default {
     return new Response('Not Found', { status: 404 });
   }
 };
-    
