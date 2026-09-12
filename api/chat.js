@@ -46,7 +46,7 @@ export default {
             : body.system_instruction;
         }
 
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${API_KEY}`;
 
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -119,4 +119,4 @@ export default {
     return new Response('File statis tidak ditemukan', { status: 404 });
   }
 };
-        
+      
