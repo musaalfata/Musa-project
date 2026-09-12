@@ -94,7 +94,7 @@ export default {
             promptText = body.prompt;
           }
         } catch (e) {
-          // Kalau body kosong/bukan json, tetap lanjut pakai default prompt
+          // Abaikan jika body kosong
         }
 
         const imagenRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:generateImages?key=${API_KEY}`, {
@@ -105,8 +105,8 @@ export default {
             config: { numberOfImages: 1, outputMimeType: 'image/jpeg' }
           })
         });
-        const data = await imagenRes.json();
         
+        const data = await imagenRes.json();
         const base64Image = data.predictions?.[0]?.bytesBase64Encoded;
         const resultUrl = base64Image ? `data:image/jpeg;base64,${base64Image}` : null;
 
@@ -115,6 +115,7 @@ export default {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
       } catch (err) {
+        // Mengembalikan JSON valid meskipun gagal, mencegah error Unexpected end of JSON input
         return new Response(JSON.stringify({ resultImageUrl: null, error: err.message }), {
           status: 200,
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
@@ -129,4 +130,4 @@ export default {
     return new Response('File statis tidak ditemukan', { status: 404 });
   }
 };
-      
+          
