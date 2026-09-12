@@ -25,10 +25,15 @@ export default async function handler(req, res) {
       })
     });
 
-    const data = await response.json();
+    const responseText = await response.text();
+    
+    if (!responseText) {
+      return res.status(500).json({ error: 'Server AI mengembalikan respons kosong' });
+    }
+
+    const data = JSON.parse(responseText);
     return res.status(response.status).json(data);
   } catch (error) {
     return res.status(500).json({ error: error.message || 'Gagal terhubung ke API' });
   }
-}
-
+        }
