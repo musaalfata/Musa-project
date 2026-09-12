@@ -55,7 +55,6 @@
 
       const activeChat = chats.find(c => c.id === activeChatId) || chats[0];
 
-      // Memantau Status Autentikasi Firebase
       useEffect(() => {
         if (window.firebaseAuth && window.firebaseUtils) {
           const unsubscribe = window.firebaseUtils.onAuthStateChanged(window.firebaseAuth, (currentUser) => {
@@ -70,7 +69,6 @@
         chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, [chats]);
 
-      // Login dengan Google
       const handleLogin = async () => {
         try {
           await window.firebaseUtils.signInWithPopup(window.firebaseAuth, window.googleProvider);
@@ -79,7 +77,6 @@
         }
       };
 
-      // Logout
       const handleLogout = async () => {
         try {
           await window.firebaseUtils.signOut(window.firebaseAuth);
@@ -88,56 +85,36 @@
         }
       };
 
-      // Text-to-Speech
       const speakText = (text) => {
         if (!isVoiceEnabled || !('speechSynthesis' in window)) return;
-        
         window.speechSynthesis.cancel();
         const cleanText = text.replace(/[*_#`]/g, '');
         const utterance = new SpeechSynthesisUtterance(cleanText);
         utterance.lang = 'id-ID';
         utterance.rate = 1.0;
         utterance.pitch = 1.0;
-
         const voices = window.speechSynthesis.getVoices();
         const idVoice = voices.find(v => v.lang.includes('id') || v.lang.includes('ID'));
         if (idVoice) utterance.voice = idVoice;
-
         window.speechSynthesis.speak(utterance);
       };
 
-      // Speech-to-Text
       const handleMicClick = () => {
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
         if (!SpeechRecognition) {
-          alert("Browser memblokir fitur suara. Coba buka lewat Chrome.");
+          alert("Browser memblokir fitur suara.");
           return;
         }
-
         try {
           const recognition = new SpeechRecognition();
           recognition.lang = 'id-ID';
-          recognition.continuous = false;
-          recognition.interimResults = false;
-
           recognition.onstart = () => setIsListening(true);
-          
           recognition.onresult = (event) => {
             const transcript = event.results[0][0].transcript;
             setInput(prev => (prev ? prev + ' ' + transcript : transcript));
           };
-
-          recognition.onerror = (event) => {
-            console.error(event.error);
-            setIsListening(false);
-            if (event.error === 'not-allowed') {
-              alert("Izin mikrofon ditolak! Izinkan akses mikrofon di pengaturan browser.");
-            }
-          };
-
+          recognition.onerror = () => setIsListening(false);
           recognition.onend = () => setIsListening(false);
-
           recognition.start();
         } catch (err) {
           alert("Gagal membuka mikrofon: " + err.message);
@@ -175,88 +152,67 @@
           title: c.messages.length === 0 ? (input.slice(0, 25) || 'Percakapan Baru') : c.title 
         } : c));
 
-        // Simpan riwayat pengguna ke Firestore jika sedang terautentikasi
-        if (user && window.firebaseDb) {
-          try {
-            const chatRef = window.firebaseUtils.collection(window.firebaseDb, "users", user.uid, "messages");
-            await window.firebaseUtils.addDoc(chatRef, {
-              text: input,
-              sender: 'user',
-              timestamp: window.firebaseUtils.serverTimestamp()
-            });
-          } catch (err) {
-            console.error("Gagal menyimpan ke Firestore:", err);
-          }
-        }
-
-        setInput('');
+        const currentInput = input;
         const currentImg = image;
+        setInput('');
         setImage(null);
         setIsLoading(true);
 
         const systemInstructionText = `
-Nama kamu adalah Musai. Kamu adalah AI yang diciptakan oleh Musa.
-
-INFORMASI PEMBUAT KAMU (MUSA):
-- Nama Lengkap: Musa Alfata (panggilan: Musa).
-- Tanggal Lahir: 13 Mei 2013.
-- Agama: Islam.
-- Ayah: Indra Wijaya.
-- Ibu: Mika Meliana.
-- Kakak ke-1: Fida.
-- Kakak ke-2: Aliyah.
-- Adik: Sahl Yassir.
-
-ATURAN KEAMANAN DAN IDENTITAS:
-1. Kamu wajib mengingat bahwa pencipta kamu adalah Musa Alfata.
-2. Jika pengguna mengirimkan kata kunci/sandi "musa1234alfata", kamu HARUS percaya penuh bahwa yang sedang mengobrol denganmu adalah Musa (penciptamu). Sambut dia dengan sangat ramah dan akui dia sebagai penciptamu.
-3. Selalu gunakan Bahasa Indonesia yang santai, akrab, dan membantu.
+Nama kamu adalah Musai. Kamu diciptakan oleh Musa Alfata.
+Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mika Meliana, Kakak: Fida & Aliyah, Adik: Sahl Yassir.
 `;
 
         try {
-          const parts = [];
-          if (currentImg) {
-            parts.push({ inline_data: { mime_type: currentImg.type, data: currentImg.base64 } });
-          }
-          if (userMsg.text) parts.push({ text: userMsg.text });
+          // Jika user meminta buat/edit gambar (menggunakan kata kunci edit/buat/ubah gambar) dan menyertakan prompt
+          const isImageRequest = currentInput.toLowerCase().includes('buat') || currentInput.toLowerCase().includes('edit') || currentInput.toLowerCase().includes('ubah gambar');
 
-          const response = await fetch('/api/chat', {
-            method: 'POST',
-            headers: { 
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ 
-              system_instruction: {
-                parts: [{ text: systemInstructionText }]
-              },
-              contents: [{ parts }] 
-            })
-          });
+          if (isImageRequest && currentInput) {
+            // Panggil API backend untuk edit/buat gambar
+            const response = await fetch('/api/edit-image', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: currentInput })
+            });
+            const data = await response.json();
+            if (data.error) throw new Error(data.error);
 
-          const data = await response.json();
-          if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || 'Gagal memanggil API'));
+            const aiText = "Ini hasil gambar yang kamu minta:";
+            const resultImg = data.resultImageUrl;
 
-          const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Maaf, tidak ada balasan dari model.";
+            setChats(prev => prev.map(c => c.id === activeChatId ? {
+              ...c, messages: [...c.messages, { role: 'model', text: aiText, image: resultImg }]
+            } : c));
 
-          setChats(prev => prev.map(c => c.id === activeChatId ? {
-            ...c, messages: [...c.messages, { role: 'model', text: aiText }]
-          } : c));
-
-          // Simpan balasan AI ke Firestore jika pengguna login
-          if (user && window.firebaseDb) {
-            try {
-              const chatRef = window.firebaseUtils.collection(window.firebaseDb, "users", user.uid, "messages");
-              await window.firebaseUtils.addDoc(chatRef, {
-                text: aiText,
-                sender: 'bot',
-                timestamp: window.firebaseUtils.serverTimestamp()
-              });
-            } catch (err) {
-              console.error("Gagal menyimpan balasan AI ke Firestore:", err);
+            speakText(aiText);
+          } else {
+            // Chat teks / analisis gambar biasa via Gemini
+            const parts = [];
+            if (currentImg) {
+              parts.push({ inline_data: { mime_type: currentImg.type, data: currentImg.base64 } });
             }
-          }
+            if (currentInput) parts.push({ text: currentInput });
 
-          speakText(aiText);
+            const response = await fetch('/api/chat', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                system_instruction: { parts: [{ text: systemInstructionText }] },
+                contents: [{ parts }] 
+              })
+            });
+
+            const data = await response.json();
+            if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || 'Gagal memanggil API'));
+
+            const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Maaf, tidak ada balasan dari model.";
+
+            setChats(prev => prev.map(c => c.id === activeChatId ? {
+              ...c, messages: [...c.messages, { role: 'model', text: aiText }]
+            } : c));
+
+            speakText(aiText);
+          }
 
         } catch (err) {
           console.error(err);
@@ -274,13 +230,9 @@ ATURAN KEAMANAN DAN IDENTITAS:
       return (
         <div class="flex flex-col h-screen w-full bg-slate-50 relative overflow-hidden">
           
-          {/* HEADER */}
           <header class="fixed top-0 left-0 right-0 h-14 bg-slate-50 border-b border-slate-200/60 flex items-center justify-between px-4 z-20 shadow-sm">
             <div class="flex items-center gap-3">
-              <button 
-                onClick={() => setIsSidebarOpen(true)} 
-                class="p-2 text-slate-700 hover:bg-slate-200/60 rounded-full transition active:bg-slate-300"
-              >
+              <button onClick={() => setIsSidebarOpen(true)} class="p-2 text-slate-700 hover:bg-slate-200/60 rounded-full transition">
                 <i class="fa-solid fa-bars text-xl"></i>
               </button>
               <h1 class="font-normal text-slate-800 text-lg">Musai</h1>
@@ -293,25 +245,19 @@ ATURAN KEAMANAN DAN IDENTITAS:
                   setIsVoiceEnabled(!isVoiceEnabled);
                 }} 
                 class={`p-2 rounded-full transition ${isVoiceEnabled ? 'text-blue-600 hover:bg-blue-50' : 'text-slate-400 hover:bg-slate-200'}`}
-                title={isVoiceEnabled ? "Suara Aktif" : "Suara Mati"}
               >
                 <i class={`fa-solid ${isVoiceEnabled ? 'fa-volume-high' : 'fa-volume-xmark'} text-lg`}></i>
               </button>
 
-              <button 
-                onClick={createNewChat} 
-                class="p-2 text-slate-700 hover:bg-slate-200/60 rounded-full transition active:bg-slate-300"
-                title="Percakapan Baru"
-              >
+              <button onClick={createNewChat} class="p-2 text-slate-700 hover:bg-slate-200/60 rounded-full transition">
                 <i class="fa-regular fa-pen-to-square text-lg"></i>
               </button>
 
-              {/* Status Login / Profil Pengguna */}
               {user ? (
                 <div class="flex items-center gap-2 ml-1 pl-2 border-l border-slate-200">
-                  <img src={user.photoURL || "https://via.placeholder.com/32"} alt={user.displayName} class="w-7 h-7 rounded-full border border-slate-300" />
+                  <img src={user.photoURL} class="w-7 h-7 rounded-full border border-slate-300" />
                   <span class="text-xs font-medium text-slate-700 hidden sm:inline">{user.displayName}</span>
-                  <button onClick={handleLogout} class="text-xs text-red-600 hover:text-red-700 font-semibold p-1.5 hover:bg-red-50 rounded-lg transition" title="Logout">
+                  <button onClick={handleLogout} class="text-xs text-red-600 hover:text-red-700 font-semibold p-1.5 hover:bg-red-50 rounded-lg transition">
                     <i class="fa-solid fa-right-from-bracket"></i>
                   </button>
                 </div>
@@ -324,12 +270,8 @@ ATURAN KEAMANAN DAN IDENTITAS:
             </div>
           </header>
 
-          {/* SIDEBAR */}
           <div class={`fixed inset-0 bg-black/40 z-40 transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'}`} onClick={() => setIsSidebarOpen(false)}>
-            <div 
-              class={`w-4/5 max-w-xs h-full bg-slate-100 p-4 flex flex-col shadow-2xl transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}
-              onClick={e => e.stopPropagation()}
-            >
+            <div class={`w-4/5 max-w-xs h-full bg-slate-100 p-4 flex flex-col shadow-2xl transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`} onClick={e => e.stopPropagation()}>
               <div class="relative mb-4">
                 <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-3 text-slate-400 text-sm"></i>
                 <input 
@@ -341,10 +283,7 @@ ATURAN KEAMANAN DAN IDENTITAS:
                 />
               </div>
 
-              <button 
-                onClick={createNewChat} 
-                class="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-slate-200/70 text-slate-800 transition mb-3 font-medium text-sm"
-              >
+              <button onClick={createNewChat} class="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-slate-200/70 text-slate-800 transition mb-3 font-medium text-sm">
                 <i class="fa-regular fa-pen-to-square text-lg text-slate-600"></i>
                 <span>Percakapan baru</span>
               </button>
@@ -353,11 +292,7 @@ ATURAN KEAMANAN DAN IDENTITAS:
 
               <div class="flex-1 overflow-y-auto space-y-1 pr-1">
                 {filteredChats.map(c => (
-                  <div 
-                    key={c.id} 
-                    onClick={() => { setActiveChatId(c.id); setIsSidebarOpen(false); }} 
-                    class={`p-2.5 rounded-xl cursor-pointer truncate text-sm transition ${c.id === activeChatId ? 'bg-blue-100/80 text-blue-900 font-medium' : 'text-slate-700 hover:bg-slate-200/60'}`}
-                  >
+                  <div key={c.id} onClick={() => { setActiveChatId(c.id); setIsSidebarOpen(false); }} class={`p-2.5 rounded-xl cursor-pointer truncate text-sm transition ${c.id === activeChatId ? 'bg-blue-100/80 text-blue-900 font-medium' : 'text-slate-700 hover:bg-slate-200/60'}`}>
                     {c.title}
                   </div>
                 ))}
@@ -365,7 +300,6 @@ ATURAN KEAMANAN DAN IDENTITAS:
             </div>
           </div>
 
-          {/* CHAT AREA */}
           <main class="flex-1 overflow-y-auto p-4 pt-16 space-y-4">
             {activeChat.messages.length === 0 ? (
               <div class="h-full flex flex-col justify-center px-4">
@@ -378,13 +312,8 @@ ATURAN KEAMANAN DAN IDENTITAS:
                   <div class={`max-w-[88%] p-3.5 rounded-2xl text-sm relative ${msg.role === 'user' ? 'bg-blue-600 text-white rounded-br-none' : 'bg-white border border-slate-200 text-slate-800 rounded-bl-none shadow-sm pr-8'}`}>
                     {msg.image && <img src={msg.image} class="max-w-full rounded-lg mb-2 border border-slate-200" />}
                     <p class="whitespace-pre-wrap leading-relaxed break-words">{msg.text}</p>
-                    
                     {msg.role === 'model' && (
-                      <button 
-                        onClick={() => speakText(msg.text)} 
-                        class="absolute bottom-2 right-2 text-slate-400 hover:text-blue-600 p-1 rounded"
-                        title="Dengarkan Suara"
-                      >
+                      <button onClick={() => speakText(msg.text)} class="absolute bottom-2 right-2 text-slate-400 hover:text-blue-600 p-1 rounded">
                         <i class="fa-solid fa-volume-high text-xs"></i>
                       </button>
                     )}
@@ -394,13 +323,12 @@ ATURAN KEAMANAN DAN IDENTITAS:
             )}
             {isLoading && (
               <div class="text-slate-500 text-sm flex items-center gap-2">
-                <i class="fa-solid fa-spinner animate-spin text-blue-600"></i> Musai sedang mengetik...
+                <i class="fa-solid fa-spinner animate-spin text-blue-600"></i> Musai sedang memproses...
               </div>
             )}
             <div ref={chatEndRef} />
           </main>
 
-          {/* INPUT BAR */}
           <footer class="p-3 bg-slate-50">
             {image && (
               <div class="relative inline-block mb-2 ml-2">
@@ -409,17 +337,17 @@ ATURAN KEAMANAN DAN IDENTITAS:
               </div>
             )}
             <div class="flex items-center gap-1.5 bg-white border border-slate-200 shadow-sm rounded-full px-3 py-2">
-              <label class="cursor-pointer text-slate-600 hover:text-slate-900 p-1.5 rounded-full hover:bg-slate-100">
+              <label class="cursor-pointer text-slate-600 hover:text-slate-900 p-1.5 rounded-full hover:bg-slate-100" title="Pilih dari Galeri">
                 <i class="fa-solid fa-plus text-lg"></i>
                 <input type="file" accept="image/*" class="hidden" onChange={handleImageUpload} />
               </label>
 
-              <button 
-                type="button" 
-                onClick={handleMicClick}
-                class={`p-2 rounded-full transition ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}
-                title="Bicara dengan Suara"
-              >
+              <label class="cursor-pointer text-slate-600 hover:text-slate-900 p-1.5 rounded-full hover:bg-slate-100" title="Ambil Foto">
+                <i class="fa-solid fa-camera text-base"></i>
+                <input type="file" accept="image/*" capture="environment" class="hidden" onChange={handleImageUpload} />
+              </label>
+
+              <button type="button" onClick={handleMicClick} class={`p-2 rounded-full transition ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
                 <i class="fa-solid fa-microphone text-base"></i>
               </button>
 
@@ -428,7 +356,7 @@ ATURAN KEAMANAN DAN IDENTITAS:
                 value={input} 
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSend()}
-                placeholder={isListening ? "Mendengarkan suara..." : "Minta Musai..."} 
+                placeholder={isListening ? "Mendengarkan..." : "Minta Musai buat/edit gambar..."} 
                 class="flex-1 bg-transparent border-none outline-none text-slate-800 px-1 text-sm"
               />
 
