@@ -2,26 +2,19 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
-    // Endpoint API untuk Chat
     if (url.pathname === '/api/chat') {
       if (request.method !== 'POST') {
-        return new Response(JSON.stringify({ error: 'Method not allowed' }), {
-          status: 405,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return new Response(JSON.stringify({ error: 'Method not allowed' }), { status: 405 });
       }
 
       const API_KEY = env.GCP_API_KEY;
       if (!API_KEY) {
-        return new Response(JSON.stringify({ error: 'API Key belum dikonfigurasi' }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return new Response(JSON.stringify({ error: 'API Key belum dikonfigurasi' }), { status: 500 });
       }
 
       try {
         const { contents, system_instruction } = await request.json();
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${API_KEY}`;
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:streamGenerateContent?key=${API_KEY}`;
 
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -29,20 +22,18 @@ export default {
           body: JSON.stringify({ system_instruction, contents })
         });
 
-        const data = await response.json();
-        return new Response(JSON.stringify(data), {
-          status: response.status,
-          headers: { 'Content-Type': 'application/json' }
+        return new Response(response.body, {
+          headers: { 
+            'Content-Type': 'text/event-stream',
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive'
+          }
         });
       } catch (error) {
-        return new Response(JSON.stringify({ error: error.message }), {
-          status: 500,
-          headers: { 'Content-Type': 'application/json' }
-        });
+        return new Response(JSON.stringify({ error: error.message }), { status: 500 });
       }
     }
 
-    // Melayani file statis (index.html, CSS, JS frontend)
     if (env.ASSETS) {
       return env.ASSETS.fetch(request);
     }
@@ -50,3 +41,4 @@ export default {
     return new Response('File statis tidak ditemukan', { status: 404 });
   }
 };
+                                                                       
