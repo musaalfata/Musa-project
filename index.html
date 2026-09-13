@@ -166,9 +166,13 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
           const isImageRequest = currentInput.toLowerCase().includes('buat') || currentInput.toLowerCase().includes('edit') || currentInput.toLowerCase().includes('ubah gambar');
 
           if (isImageRequest && currentInput) {
-            const response = await fetch('/api/edit-image', {
+            const response = await fetch('https://saalfata3.workers.dev/api/edit-image', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              mode: 'cors',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
               body: JSON.stringify({ prompt: currentInput })
             });
             
@@ -181,7 +185,7 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
             }
 
             if (data.error) throw new Error(data.error);
-            if (!data.resultImageUrl) throw new Error("API Google tidak merespons dengan gambar yang valid.");
+            if (!data.resultImageUrl) throw new Error("API Google tidak merespons dengan gambar.");
 
             const aiText = "Ini hasil gambar yang kamu minta:";
             const resultImg = data.resultImageUrl;
@@ -198,9 +202,13 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
             }
             if (currentInput) parts.push({ text: currentInput });
 
-            const response = await fetch('/api/chat', {
+            const response = await fetch('https://saalfata3.workers.dev/api/chat', {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              mode: 'cors',
+              headers: { 
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
               body: JSON.stringify({ 
                 system_instruction: { parts: [{ text: systemInstructionText }] },
                 contents: [{ parts }] 
