@@ -14,7 +14,6 @@
 <body class="bg-slate-50 text-slate-900 font-sans antialiased h-screen overflow-hidden">
   <div id="root" class="h-full"></div>
 
-  <!-- Import Module Firebase -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
     import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
@@ -167,13 +166,22 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
           const isImageRequest = currentInput.toLowerCase().includes('buat') || currentInput.toLowerCase().includes('edit') || currentInput.toLowerCase().includes('ubah gambar');
 
           if (isImageRequest && currentInput) {
-            const response = await fetch('https://saalfata3.workers.dev/api/edit-image', {
+            const response = await fetch('/api/edit-image', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ prompt: currentInput })
             });
-            const data = await response.json();
+            
+            const rawText = await response.text();
+            let data;
+            try {
+              data = JSON.parse(rawText);
+            } catch (parseError) {
+              throw new Error(`Worker Error: ${rawText.slice(0, 100)}`);
+            }
+
             if (data.error) throw new Error(data.error);
+            if (!data.resultImageUrl) throw new Error("API Google tidak merespons dengan gambar yang valid.");
 
             const aiText = "Ini hasil gambar yang kamu minta:";
             const resultImg = data.resultImageUrl;
@@ -190,7 +198,7 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
             }
             if (currentInput) parts.push({ text: currentInput });
 
-            const response = await fetch('https://saalfata3.workers.dev/api/chat', {
+            const response = await fetch('/api/chat', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
@@ -199,7 +207,14 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
               })
             });
 
-            const data = await response.json();
+            const rawText = await response.text();
+            let data;
+            try {
+              data = JSON.parse(rawText);
+            } catch (parseError) {
+              throw new Error(`Worker Error: ${rawText.slice(0, 100)}`);
+            }
+
             if (data.error) throw new Error(typeof data.error === 'string' ? data.error : (data.error.message || 'Gagal memanggil API'));
 
             const aiText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Maaf, tidak ada balasan dari model.";
@@ -226,7 +241,6 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
 
       return (
         <div class="flex flex-col h-screen w-full bg-slate-50 relative overflow-hidden">
-          
           <header class="fixed top-0 left-0 right-0 h-14 bg-slate-50 border-b border-slate-200/60 flex items-center justify-between px-4 z-20 shadow-sm">
             <div class="flex items-center gap-3">
               <button onClick={() => setIsSidebarOpen(true)} class="p-2 text-slate-700 hover:bg-slate-200/60 rounded-full transition">
@@ -234,7 +248,6 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
               </button>
               <h1 class="font-normal text-slate-800 text-lg">Musai</h1>
             </div>
-
             <div class="flex items-center gap-2">
               <button 
                 onClick={() => {
@@ -245,11 +258,9 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
               >
                 <i class={`fa-solid ${isVoiceEnabled ? 'fa-volume-high' : 'fa-volume-xmark'} text-lg`}></i>
               </button>
-
               <button onClick={createNewChat} class="p-2 text-slate-700 hover:bg-slate-200/60 rounded-full transition">
                 <i class="fa-regular fa-pen-to-square text-lg"></i>
               </button>
-
               {user ? (
                 <div class="flex items-center gap-2 ml-1 pl-2 border-l border-slate-200">
                   <img src={user.photoURL} class="w-7 h-7 rounded-full border border-slate-300" />
@@ -279,14 +290,11 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
                   class="w-full bg-white border border-slate-200 rounded-full py-2 pl-9 pr-4 text-sm text-slate-800 outline-none focus:border-blue-500 shadow-sm"
                 />
               </div>
-
               <button onClick={createNewChat} class="flex items-center gap-3 w-full p-2.5 rounded-xl hover:bg-slate-200/70 text-slate-800 transition mb-3 font-medium text-sm">
                 <i class="fa-regular fa-pen-to-square text-lg text-slate-600"></i>
                 <span>Percakapan baru</span>
               </button>
-
               <div class="text-xs font-semibold text-slate-500 px-2 mb-2">Percakapan</div>
-
               <div class="flex-1 overflow-y-auto space-y-1 pr-1">
                 {filteredChats.map(c => (
                   <div key={c.id} onClick={() => { setActiveChatId(c.id); setIsSidebarOpen(false); }} class={`p-2.5 rounded-xl cursor-pointer truncate text-sm transition ${c.id === activeChatId ? 'bg-blue-100/80 text-blue-900 font-medium' : 'text-slate-700 hover:bg-slate-200/60'}`}>
@@ -338,16 +346,13 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
                 <i class="fa-solid fa-plus text-lg"></i>
                 <input type="file" accept="image/*" class="hidden" onChange={handleImageUpload} />
               </label>
-
               <label class="cursor-pointer text-slate-600 hover:text-slate-900 p-1.5 rounded-full hover:bg-slate-100" title="Ambil Foto">
                 <i class="fa-solid fa-camera text-base"></i>
                 <input type="file" accept="image/*" capture="environment" class="hidden" onChange={handleImageUpload} />
               </label>
-
               <button type="button" onClick={handleMicClick} class={`p-2 rounded-full transition ${isListening ? 'bg-red-500 text-white animate-pulse' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'}`}>
                 <i class="fa-solid fa-microphone text-base"></i>
               </button>
-
               <input 
                 type="text" 
                 value={input} 
@@ -356,13 +361,11 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
                 placeholder={isListening ? "Mendengarkan..." : "Minta Musai buat/edit gambar..."} 
                 class="flex-1 bg-transparent border-none outline-none text-slate-800 px-1 text-sm"
               />
-
               <button onClick={handleSend} class="text-blue-600 hover:text-blue-700 p-2 rounded-full hover:bg-blue-50">
                 <i class="fa-solid fa-paper-plane text-base"></i>
               </button>
             </div>
           </footer>
-
         </div>
       );
     }
