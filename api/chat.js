@@ -1,7 +1,7 @@
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
-    const API_KEY = env.GCP_API_KEY;
+    const API_KEY = env.GCP_API_KEY || env.GEMINI_API_KEY;
 
     if (request.method === 'OPTIONS') {
       return new Response(null, {
@@ -22,8 +22,8 @@ export default {
       }
 
       if (!API_KEY) {
-        return new Response(JSON.stringify({ error: 'API Key belum dikonfigurasi' }), {
-          status: 500,
+        return new Response(JSON.stringify({ error: 'API Key belum dikonfigurasi di Cloudflare Worker' }), {
+          status: 200,
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
       }
@@ -46,7 +46,8 @@ export default {
             : body.system_instruction;
         }
 
-        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${API_KEY}`;
+        // Menggunakan model gemini-1.5-flash yang stabil dan pasti ada
+        const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
         const response = await fetch(endpoint, {
           method: 'POST',
@@ -115,7 +116,6 @@ export default {
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
         });
       } catch (err) {
-        // Mengembalikan JSON valid meskipun gagal, mencegah error Unexpected end of JSON input
         return new Response(JSON.stringify({ resultImageUrl: null, error: err.message }), {
           status: 200,
           headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' }
@@ -130,4 +130,4 @@ export default {
     return new Response('File statis tidak ditemukan', { status: 404 });
   }
 };
-          
+            
