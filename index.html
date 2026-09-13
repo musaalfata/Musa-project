@@ -164,12 +164,10 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
 `;
 
         try {
-          // Jika user meminta buat/edit gambar (menggunakan kata kunci edit/buat/ubah gambar) dan menyertakan prompt
           const isImageRequest = currentInput.toLowerCase().includes('buat') || currentInput.toLowerCase().includes('edit') || currentInput.toLowerCase().includes('ubah gambar');
 
           if (isImageRequest && currentInput) {
-            // Panggil API backend untuk edit/buat gambar
-            const response = await fetch('/api/edit-image', {
+            const response = await fetch('https://saalfata3.workers.dev/api/edit-image', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ prompt: currentInput })
@@ -186,14 +184,13 @@ Informasi Pembuat: Musa Alfata (13 Mei 2013), Islam, Ayah: Indra Wijaya, Ibu: Mi
 
             speakText(aiText);
           } else {
-            // Chat teks / analisis gambar biasa via Gemini
             const parts = [];
             if (currentImg) {
               parts.push({ inline_data: { mime_type: currentImg.type, data: currentImg.base64 } });
             }
             if (currentInput) parts.push({ text: currentInput });
 
-            const response = await fetch('/api/chat', {
+            const response = await fetch('https://saalfata3.workers.dev/api/chat', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ 
